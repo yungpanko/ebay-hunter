@@ -1,0 +1,107 @@
+name: Super-faded loose straight-leg men's jeans (SilverTab Loose/569), 33–36 waist
+idea: vintage jeans
+summary: Men's vintage jeans with a looser fit and high rise, straight leg with no taper and a ~9-10"
+  opening, in a super faded light wash. Benchmarked against the user's Sugar Cane 1947 (size 34) but roomier
+  in the thigh; happy to size up in the waist and belt. Under $70, clean apart from small holes.
+queries:
+- levis silvertab loose jeans
+- vintage levis 569 loose straight jeans
+- vintage loose straight leg jeans light wash mens
+- vintage faded straight leg jeans 90s
+- vintage lee wrangler loose straight jeans faded
+- vintage levis jeans light wash 36x32
+category_ids:
+- '11483'
+filters:
+  price_max: 70
+  currency: USD
+  buying_options:
+  - FIXED_PRICE
+  - AUCTION
+  - BEST_OFFER
+  conditions:
+  - USED
+  - UNSPECIFIED
+  delivery_country: US
+aspects: {}
+exclude_keywords:
+- womens
+- women's
+- ladies
+- skinny
+- slim
+- tapered
+- taper
+- kids
+- boys
+- flare
+- jeggings
+must_haves:
+- Men's cut
+- 'Straight leg with no taper: knee and leg opening close in width, opening roughly 9-10.25" flat'
+- Roomy thigh (about 12.5-14.5" flat)
+- High or mid-high rise (front rise about 11.5"+)
+- Light, heavily faded wash
+- No rips, tears or stains (small holes are OK)
+nice_to_haves:
+- 90s Levi's SilverTab Loose
+- 'Natural wear fading: whiskers, honeycombs, worn-in seams'
+- Made in USA
+- Seller lists flat measurements
+dealbreakers:
+- Tapered leg (Levi's 550, 560 or anything with a narrow ~7-8" opening)
+- Women's cuts / mom jeans
+- Skinny, slim, bootcut or flare
+- Rips, tears, crotch blowouts or visible stains
+- Dark or rigid wash
+measurements:
+- name: waist (measured flat, doubled)
+  min: 33
+  max: 36
+  unit: in
+  note: Flat 16.5-18". Reference Sugar Cane 1947 size 34 is ~16.5" flat. User happy to size up and belt
+    for thigh room.
+- name: front rise
+  min: 11.5
+  max: 13.5
+  unit: in
+  note: Reference 1947 is ~11.75". Wants high rise; 569s often ~11" so check carefully.
+- name: thigh (flat, just below crotch)
+  min: 12.5
+  max: 14.5
+  unit: in
+  note: Reference 1947 is ~12.25"; wants roomier.
+- name: leg opening (flat)
+  min: 9
+  max: 10.25
+  unit: in
+  note: User said 9" (like the 1947) is great; straight, not tapered.
+- name: inseam
+  min: 32
+  max: null
+  unit: in
+  note: At least 32".
+fit_notes: 'Loose, high rise, straight leg, no taper. Benchmark: Sugar Cane 1947 size 34 (waist ~16.5\"
+  flat, rise ~11.75\", thigh ~12.25\", opening ~9\") but roomier through the thigh. Bigger waist is fine;
+  they''ll belt it.'
+price_guidance: Max $70. 90s SilverTab Loose usually runs $45-70 on eBay/Etsy; 569s can be listed higher
+  by resellers. Under ~$35 shipped is a steal; $45-60 is fair; above $70 is out.
+knowledge:
+- 'SilverTab Loose: silver (not red) back pocket tab; inner waistband label often printed ''LOOSE''. 90s
+  versions have a straight, roomy leg and high rise. Best target.'
+- 'Levi''s 569 Loose Straight: straight, generous seat/thigh, but sits lower than 550s, so verify the
+  front rise is ~11.5"+.'
+- Levi's 550 (relaxed) and 560 (loose) both taper toward the hem, so reject them unless the measured opening
+  is ~9"+ and the leg reads straight in photos.
+- 'Check the leg shape in photos: knee and hem should be similar widths. A narrowing hem means it''s tapered.'
+- Prefer genuine wear fading (whiskers, honeycombs, faded seams/pockets) over acid wash or bleach splatter.
+- Look closely for stains, crotch blowouts and knee rips in photos; small pinholes are acceptable.
+- Tag sizes on vintage Levi's often run off by 1-2"; rely on measured flat waist.
+gem_notes: Show badly titled or unbranded pairs (e.g. 'blue jeans 34' or 'old faded denim') if the photos
+  show a light fade and a straight, roomy leg. Also show Lee, Wrangler or workwear jeans with the right
+  shape, and sized-up 501s (35-36 waist) if the thigh and opening measure in range. A great Made in USA
+  SilverTab slightly over budget on Best Offer is worth flagging.
+slug: super-faded-loose-straight-leg-men-s-jeans-silvertab-loose-5
+created: '2026-11-24T20:46:36+00:00'
+updated: '2026-11-24T20:46:36+00:00'
+active: true
