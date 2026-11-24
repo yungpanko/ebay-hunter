@@ -251,3 +251,20 @@ def test_slug_is_short():
     from hunter.store import slugify
     s = slugify("Super faded loose straight-leg men's jeans (SilverTab Loose, 569)")
     assert len(s) <= 40 and not s.endswith("-")
+
+
+def test_builder_carries_context_unless_fresh(env):
+    s, store = env
+    store.save_search(dict(SEARCH))
+    store.add_feedback({"search": "usa-501s", "reaction": "passed", "title": "Levis 550", "note": "too tapered"})
+    store.update_profile_section("Buying style", "Under $70.")
+
+    def system_text(fresh):
+        claude = FakeClaude(lambda kw: resp(text("hi")))
+        Builder(s, store, claude=claude, ask=lambda _: "quit", say=lambda _: None, fresh=fresh).chat("sweaters")
+        return claude.calls[0]["system"][0]["text"]
+
+    carried = system_text(False)
+    assert "Made in USA Levi's 501s" in carried and "too tapered" in carried and "Under $70." in carried
+    fresh = system_text(True)
+    assert "Made in USA Levi's 501s" not in fresh and "Under $70." not in fresh and "start from scratch" in fresh

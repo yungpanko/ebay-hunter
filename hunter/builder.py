@@ -26,7 +26,8 @@ like a text from a friend. Give the why in a single short clause (e.g. "Made in 
 pre-2003 501s are the better denim, and sellers often miss the tag."), and go deeper only if they ask. No \
 headers, no long bullet lists, no measurement guides unless they want one. Short answer options are fine \
 ("pre-2003, 90s, or any era?").
-- Never let it feel like a form. Once you have enough for a decent search (often after two or three answers), say so in a short line and let them choose: keep refining, or save now. For example: "I have enough to start watching. A couple more details would sharpen it, or I can save it now and fill the rest with sensible defaults." Offer that again every few turns, not after every question. If they want to go ahead, or answer vaguely, don't push: fill the gaps with sensible defaults, say what you assumed in one line, and save. They can always refine later with `hunter edit`.
+- Never let it feel like a form. Once you have enough for a decent search (often after two or three answers), say so, then coach: name the one detail most worth adding next and why, in a sentence, grounded in research or what usually goes wrong in this category (e.g. "I can start watching now. One thing worth adding: your sleeve length, since vintage sweaters often run short in the arms. Want to add it, or save as is?"). Let them choose. Offer this every few turns, not after every question. If they want to go ahead, or answer vaguely, don't push: fill the gaps with sensible defaults, say what you assumed in one line, and save. They can always refine later with `hunter edit`.
+- Carry over what you already know. If their profile, past searches or feedback say something relevant to this search (fit habits, price comfort, taste, things they've passed on), tell them early in one or two short lines what you're carrying over (e.g. "From your jeans search: you like a roomier fit, under $70, and heavy fades. Same here?") and let them confirm, adjust, or start fresh for this one. Only carry what plausibly transfers to this category. Then skip questions you already have answers to.
 - Research when it helps. Use web search to check facts, date ranges, identifying tags and typical prices rather \
 than guessing, but share only the one or two findings that matter, in a sentence. If eBay tools are available, use them to find the right \
 category, check the exact item-specific names, and preview what a query actually returns, then adjust.
@@ -58,10 +59,10 @@ def _tools(has_ebay: bool) -> list[dict[str, Any]]:
         {
             "name": "update_profile",
             "description": "Replace one section of the user's long-lived profile (measurements, taste, buying "
-                           "style). Write the full new section text, merging what's already there.",
+                           "style, and per-category notes like 'Sweaters: likes a boxy fit, sleeve 34-35in'). Write the full new section text, merging what's already there.",
             "strict": True,
             "input_schema": llm.obj({
-                "section": {"type": "string", "enum": ["Measurements and fit", "Taste", "Buying style"]},
+                "section": {"type": "string", "enum": ["Measurements and fit", "Taste", "Buying style", "Category notes"]},
                 "content": llm.STR,
             }),
         },
@@ -99,7 +100,7 @@ SEARCH_PREVIEW_SCHEMA = llm.obj({
 
 class Builder:
     def __init__(self, settings: Settings, store: Store, *, claude=None, ebay: EbayClient | None = None,
-                 ask: Callable[[str], str] = input, say: Callable[[str], None] = print):
+                 ask: Callable[[str], str] = input, say: Callable[[str], None] = print, fresh: bool = False):
         self.s = settings
         self.store = store
         self.claude = claude or llm.client()
@@ -109,13 +110,38 @@ class Builder:
         self.ask = ask
         self.say = say
         self.saved_path = None
+        self.fresh = fresh  # True = start from scratch, ignoring the profile and other searches
 
     def _system(self, existing: dict[str, Any] | None) -> list[dict[str, Any]]:
-        extra = f"\n\nThe user's profile so far:\n\n{self.store.read_profile()}"
+        if self.fresh:
+            extra = ("\n\nThe user asked to start from scratch: don't assume anything from earlier searches. "
+                     "You may still save new lasting facts to their profile.")
+        else:
+            extra = f"\n\nThe user's profile so far:\n\n{self.store.read_profile()}"
+            others = self.related_context(exclude=(existing or {}).get("slug"))
+            if others:
+                extra += f"\n\nTheir other saved searches and how they've reacted to finds:\n\n{others}"
         if existing:
             extra += ("\n\nThey are revising this existing search. Keep its slug when you save:\n\n"
                       + yaml.safe_dump(existing, sort_keys=False))
         return [{"type": "text", "text": SYSTEM + extra}]
+
+    def related_context(self, exclude: str | None = None) -> str:
+        """A compact roll-up of every other search plus feedback, so preferences carry across categories."""
+        keep = ["name", "summary", "filters", "measurements", "fit_notes", "price_guidance", "must_haves",
+                "dealbreakers"]
+        feedback = self.store.feedback()
+        blocks = []
+        for sr in self.store.list_searches():
+            if sr.get("slug") == exclude:
+                continue
+            view = {k: sr[k] for k in keep if sr.get(k)}
+            fb = [f"[{f.get('reaction')}] {f.get('title', '')}: {f.get('note', '')}"
+                  for f in feedback if f.get("search") == sr.get("slug")][-10:]
+            if fb:
+                view["recent_reactions"] = fb
+            blocks.append(yaml.safe_dump(view, sort_keys=False, allow_unicode=True))
+        return "\n---\n".join(blocks)
 
     # ---- tool execution ---------------------------------------------------
     def _run_tool(self, name: str, args: dict[str, Any], existing: dict[str, Any] | None) -> str:

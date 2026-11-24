@@ -65,7 +65,8 @@ hunter/                    the code
 ## Commands
 
 ```
-python -m hunter new <idea>          build a search by conversation
+python -m hunter new <idea>          build a search by conversation (carries over what it knows about you)
+python -m hunter new --fresh <idea>  same, but start from scratch
 python -m hunter edit <slug> [change] refine a search by conversation
 python -m hunter list                 show searches
 python -m hunter pause|resume <slug>

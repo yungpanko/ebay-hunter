@@ -37,7 +37,7 @@ def _after_save(path, s):
 def cmd_new(args, s, store):
     from .builder import Builder
     idea = " ".join(args.idea) or input("What are you looking for? ").strip()
-    path = Builder(s, store).chat(idea)
+    path = Builder(s, store, fresh=args.fresh).chat(idea)
     _after_save(path, s)
 
 
@@ -122,6 +122,7 @@ def main(argv=None):
 
     a = sub.add_parser("new", help="build a new search from a loose idea, by conversation")
     a.add_argument("idea", nargs="*")
+    a.add_argument("--fresh", action="store_true", help="start from scratch, ignoring your profile and other searches")
     a.set_defaults(fn=cmd_new)
 
     a = sub.add_parser("edit", help="refine an existing search by conversation")
