@@ -185,6 +185,7 @@ def test_builder_asks_then_saves(env):
     b = Builder(s, store, claude=claude, ask=lambda _: "Yes, USA only, 32-33 waist", say=said.append)
     path = b.chat("vintage jeans")
     assert path and path.name == "made-in-usa-levi-s-501s.yaml"
+    assert len(said) == 2
     data = yaml.safe_load(path.read_text())
     assert data["aspects"] == {"Brand": ["Levi's"]}
     assert data["filters"] == {"price_max": 120, "currency": "USD", "conditions": ["USED"], "delivery_country": "US"}
@@ -236,3 +237,17 @@ def test_profile_sections(env):
     store.update_profile_section("Taste", "Faded indigo.")
     p = store.read_profile()
     assert p.count("Faded indigo") == 1 and "## Learned from feedback" in p
+
+
+def test_cited_text_blocks_join_inline(env):
+    s, store = env
+    claude = FakeClaude(lambda kw: resp(text("Skip the 550, since "), text("it tapers"), text(", so try the 569.")))
+    said = []
+    Builder(s, store, claude=claude, ask=lambda _: "quit", say=said.append).chat("jeans")
+    assert said == ["Skip the 550, since it tapers, so try the 569."]
+
+
+def test_slug_is_short():
+    from hunter.store import slugify
+    s = slugify("Super faded loose straight-leg men's jeans (SilverTab Loose, 569)")
+    assert len(s) <= 40 and not s.endswith("-")

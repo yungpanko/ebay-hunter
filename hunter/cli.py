@@ -20,11 +20,25 @@ def _save_meta(store: Store, meta: dict) -> None:
     (store.s.state_dir / "meta.json").write_text(json.dumps(meta, indent=1))
 
 
+def _after_save(path, s):
+    if not path:
+        print("\nNothing saved.")
+        return
+    print(f"\nSaved: {path}\n\nNext steps:")
+    if s.has_ebay:
+        print("  1. Try it once:  python -m hunter run --dry-run   (finds go to data/outbox/, no email)")
+    else:
+        print("  1. When your eBay keys arrive, export EBAY_CLIENT_ID and EBAY_CLIENT_SECRET,")
+        print("     then try it once:  python -m hunter run --dry-run")
+    print("  2. Save it for the schedule:  git add data && git commit -m 'new search' && git push")
+    print("  3. Watching every 2 hours starts once the GitHub Actions secrets are set (see README, Setup step 4).")
+
+
 def cmd_new(args, s, store):
     from .builder import Builder
     idea = " ".join(args.idea) or input("What are you looking for? ").strip()
     path = Builder(s, store).chat(idea)
-    print(f"\nSaved: {path}" if path else "\nNothing saved.")
+    _after_save(path, s)
 
 
 def cmd_edit(args, s, store):
@@ -32,7 +46,7 @@ def cmd_edit(args, s, store):
     existing = store.load_search(args.slug)
     change = " ".join(args.change) or input("What would you like to change? ").strip()
     path = Builder(s, store).chat(change, existing=existing)
-    print(f"\nSaved: {path}" if path else "\nNothing saved.")
+    _after_save(path, s)
 
 
 def cmd_list(args, s, store):

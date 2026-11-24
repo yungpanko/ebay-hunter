@@ -41,7 +41,7 @@ knowledge so the judge (which reads photos) can catch what the title missed.
 with update_profile so future searches start smarter.
 
 When it's ready, sum the search up in a few short lines and ask if it looks right, then call save_search. Don't save before \
-they say it looks right. After saving, confirm in one sentence."""
+they say it looks right. After saving, confirm in one sentence. Don't say when watching starts or promise emails; the app prints the next steps itself."""
 
 
 def _tools(has_ebay: bool) -> list[dict[str, Any]]:
@@ -168,9 +168,10 @@ class Builder:
                 messages=messages,
             )
             messages.append({"role": "assistant", "content": resp.content})
-            for block in resp.content:
-                if block.type == "text" and block.text.strip():
-                    self.say(block.text.strip())
+            # Web search citations split one paragraph into several text blocks; join them back inline.
+            said = "".join(b.text for b in resp.content if b.type == "text").strip()
+            if said:
+                self.say(said)
             if resp.stop_reason == "pause_turn":  # long server-side web search; let it continue
                 continue
             if resp.stop_reason == "tool_use":

@@ -39,7 +39,9 @@ def now_iso() -> str:
 
 def slugify(text: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug[:60] or "search"
+    if len(slug) > 40:
+        slug = slug[:41].rsplit("-", 1)[0]
+    return slug or "search"
 
 
 class Store:
