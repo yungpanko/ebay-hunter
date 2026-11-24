@@ -142,6 +142,9 @@ def main(argv=None):
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING, format="%(message)s")
     s = Settings()
+    if args.cmd in {"run", "cron"} and not s.has_ebay:
+        sys.exit("eBay keys aren't set yet. Export EBAY_CLIENT_ID and EBAY_CLIENT_SECRET, then try again.\n"
+                 "You can still build searches now with: python -m hunter new <idea>")
     args.fn(args, s, Store(s))
 
 
