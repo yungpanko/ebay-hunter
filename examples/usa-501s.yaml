@@ -1,0 +1,53 @@
+# Example of what the search builder saves. Real searches live in data/searches/.
+name: Made in USA Levi's 501s, 32-33 waist
+slug: usa-501s
+idea: vintage jeans
+summary: USA-made Levi's 501s with honest fades that fit a 32-33 waist. Made in USA matters for the denim and
+  construction, and sellers often don't mention it in the title.
+queries:
+- levis 501 made in usa
+- vintage levis 501
+- levis 501 usa 32
+- vintage jeans 501
+category_ids:
+- '11483'
+filters:
+  price_max: 150
+  currency: USD
+  conditions:
+  - USED
+  delivery_country: US
+aspects:
+  Brand:
+  - Levi's
+exclude_keywords:
+- womens
+- kids
+- reproduction
+- LVC
+must_haves:
+- Made in USA (care tag or listing), roughly pre-2003
+nice_to_haves:
+- Single stitch or hidden rivets visible in photos
+- Natural fades and honest wear, no heavy distressing
+dealbreakers:
+- Crotch blowout or large holes in the seat
+measurements:
+- name: waist (laid flat, doubled)
+  min: 31.5
+  max: 33.5
+  unit: in
+  note: From a pair that fits well at 32.5 doubled; vintage tags run 1-2 in bigger than actual.
+- name: inseam
+  min: 29
+  max: 32
+  unit: in
+  note: Likes a small stack; 30 is ideal.
+fit_notes: Straight, not baggy; okay with a slightly higher rise.
+price_guidance: Under $60 shipped is a steal for clean USA 501s; $60-110 is fair; over $150 only for early 80s or
+  older with great fades.
+knowledge:
+- 501s made in the USA carry a Made in USA care tag; US production largely ended by 2003.
+- A 3-digit factory code on the button back (e.g. 524, 555, 653) identifies the plant.
+- Red tab with a capital E ("Big E") means about 1971 or earlier; single stitch back pockets suggest mid 80s or older.
+gem_notes: Happy to see other USA-made Levi's (505, 517, trucker jackets) in size if the price is great.
