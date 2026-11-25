@@ -22,13 +22,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Check setup
+        id: setup
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          HUNTER_EMAIL_TO: ${{ secrets.HUNTER_EMAIL_TO }}
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+        run: |
+          need="ANTHROPIC_API_KEY EBAY_CLIENT_ID EBAY_CLIENT_SECRET"
+          [ "$DRY_RUN" = "true" ] || need="$need SMTP_USER SMTP_PASSWORD HUNTER_EMAIL_TO"
+          missing=""
+          for v in $need; do [ -n "${!v}" ] || missing="$missing $v"; done
+          if [ -n "$missing" ]; then
+            echo "::notice::Skipping the hunt until setup is finished. Missing secrets:$missing (see README, Setup step 4)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.setup.outputs.ready == 'true'
       - uses: actions/setup-python@v5
+        if: steps.setup.outputs.ready == 'true'
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+        if: steps.setup.outputs.ready == 'true'
       - name: Hunt
+        if: steps.setup.outputs.ready == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
@@ -39,7 +64,7 @@ jobs:
           HUNTER_MODEL: ${{ vars.HUNTER_MODEL }}
         run: python -m hunter -v cron ${{ inputs.dry_run && '--dry-run' || '' }}
       - name: Save state
-        if: always()
+        if: always() && steps.setup.outputs.ready == 'true'
         run: |
           git config user.name "ebay-hunter"
           git config user.email "ebay-hunter@users.noreply.github.com"
