@@ -22,3 +22,14 @@ def roundup_url(s: Settings, roundup_id: str) -> str:
 
 def find_url(s: Settings, roundup_id: str, n: int) -> str:
     return f"{s.web_url}/r/{roundup_id}/{n}?k={key_for(s.web_secret, roundup_id)}"
+
+
+HOME = "home"  # the key for the home page and the companion chat
+
+
+def home_key(s: Settings) -> str:
+    return key_for(s.web_secret, HOME)
+
+
+def home_url(s: Settings) -> str:
+    return f"{s.web_url}/?k={home_key(s)}"

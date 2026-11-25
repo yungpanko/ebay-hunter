@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 
-from .chat import FindChat
+from .chat import Companion
 from .config import Settings
 from .store import Store
 from .sync import LOCK, GitSync
@@ -70,14 +70,13 @@ def build():
         settings.data_dir = workdir / "data"
     store = Store(settings)
 
-    class LockedChat(FindChat):  # serialise chat writes with the hunt loop
+    class LockedCompanion(Companion):  # serialise chat writes with the hunt loop
         def reply(self, *a, **kw):
             with LOCK:
                 return super().reply(*a, **kw)
 
-    chat = LockedChat(settings, store)
     app = create_app(
-        settings, chat,
+        settings, store, LockedCompanion(settings, store),
         before_read=(lambda: sync.pull(wait=False)) if sync.enabled else (lambda: None),
         after_write=(lambda msg: sync.push(msg)) if sync.enabled else (lambda msg: None),
     )

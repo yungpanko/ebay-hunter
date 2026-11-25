@@ -129,12 +129,17 @@ git add data && git commit -m "new search" && git push
 The watcher picks it up on its next run. On a search's first run only the newest few listings get a close
 review, so you aren't flooded with the backlog.
 
-## The web page (talk a find through)
+## The web pages and your companion
 
-Each find in a roundup links to a private page with the full breakdown (all photos, fit, price, concerns, a
-seller question to copy) and a chat with the agent: will it fit, how it compares with the other finds, what it's
-worth, and how to buy it well (an offer and walk-away number, or a max bid and when to place it). Reactions you
-give there feed your profile like email replies do. It never buys or bids for you.
+Every page (home, each roundup, each find) has your companion in a sidebar on the right, or behind the **Ask**
+button on a phone. It's one continuous conversation with one agent that sees your profile, every saved search,
+recent finds and your reactions, and knows which page you're on, so "these look good" on a find page means that
+find. Ask about any find without opening it, compare finds, check fit, get market context and a buying plan
+(an offer and walk-away number, or a max bid and when to place it). It never buys or bids for you.
+
+What you tell it goes back into the files: reactions into feedback, taste and fit into `data/profile.md`, and
+changes to what you're hunting into `data/searches/` (it can also start a new search). The conversation is kept
+in `data/state/conversation.json`.
 
 The page runs on a small always-on host, which also takes over the 2-hourly hunt from GitHub Actions. Data stays
 in this repo: the server pulls before it reads and pushes finds, chats and learned taste back.

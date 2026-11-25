@@ -76,10 +76,13 @@ def _card_html(n: int, f: dict[str, Any], talk_url: str | None = None) -> str:
 </td></tr></table>"""
 
 
-def render_roundup_html(finds: list[dict[str, Any]], link_for=None) -> str:
+def render_roundup_html(finds: list[dict[str, Any]], link_for=None, home_url: str | None = None) -> str:
+    home = (f'<p style="font-size:14px"><a href="{html.escape(home_url)}">Open your hunt and chat with your '
+            f'companion &rarr;</a></p>') if home_url else ""
     cards = "".join(_card_html(n, f, link_for(n) if link_for else None) for n, f in enumerate(finds, 1))
     return f"""<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:620px;color:#222">
 <p style="font-size:15px">Here's what turned up since the last check, best first.</p>
+{home}
 {cards}
 <p style="color:#666;font-size:13px;margin-top:20px;border-top:1px solid #eee;padding-top:12px">
 Reply with thoughts by number, like “1: love it, ordered” or “3: rise looks short”. I learn from every reply.</p>
@@ -120,12 +123,13 @@ class Mailer:
         msg["Message-ID"] = make_msgid(domain="ebay-hunter")
         link_for = (lambda n: links.find_url(self.s, roundup_id, n)) if self.s.has_web else None
         msg.set_content(render_roundup_text(finds, link_for))
-        msg.add_alternative(render_roundup_html(finds, link_for), subtype="html")
+        home = links.home_url(self.s) if self.s.has_web else None
+        msg.add_alternative(render_roundup_html(finds, link_for, home), subtype="html")
         if self.dry_run:
             self.s.outbox_dir.mkdir(parents=True, exist_ok=True)
             path = self.s.outbox_dir / f"{roundup_id}.eml"
             path.write_bytes(bytes(msg))
-            (self.s.outbox_dir / f"{roundup_id}.html").write_text(render_roundup_html(finds, link_for))
+            (self.s.outbox_dir / f"{roundup_id}.html").write_text(render_roundup_html(finds, link_for, home))
             delivery = f"dry-run: wrote {self.s.outbox_dir / (roundup_id + '.html')}"
         else:
             with smtplib.SMTP_SSL(self.s.smtp_host, self.s.smtp_port, context=ssl.create_default_context()) as smtp:

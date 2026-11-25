@@ -155,13 +155,11 @@ def cmd_dev(args, s, store):
         if not s.has_ebay:
             sys.exit("eBay keys aren't set. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env.")
         Watcher(s, store, dry_run=True, say=_say).run()
-    roundups = store.read_jsonl("roundups.jsonl")
-    if roundups:
-        url = links.roundup_url(s, roundups[-1]["id"])
-        _say(f"\nLatest roundup: {url}\n(Ctrl+C to stop the page server.)")
-        webbrowser.open(url)
-    else:
-        _say("\nNo roundups yet. Try again later, or add --reset to look at current listings again.")
+    if not store.read_jsonl("roundups.jsonl"):
+        _say("\nNo finds yet. Try again later, or add --reset to look at current listings again.")
+    url = links.home_url(s)
+    _say(f"\nYour hunt: {url}\n(Ctrl+C to stop the page server.)")
+    webbrowser.open(url)
     _serve(args.port)
 
 
