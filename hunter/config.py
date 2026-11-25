@@ -32,6 +32,15 @@ class Settings:
     smtp_port: int = field(default_factory=lambda: int(_env("SMTP_PORT", "465")))
     imap_host: str = field(default_factory=lambda: _env("IMAP_HOST", "imap.gmail.com"))
 
+    # Web chat page (optional): where it's hosted, and the secret that signs private links
+    web_url: str = field(default_factory=lambda: _env("HUNTER_WEB_URL").rstrip("/"))
+    web_secret: str = field(default_factory=lambda: _env("HUNTER_WEB_SECRET"))
+
+    # Server mode: keep data in sync with the GitHub repo, and hunt on a timer
+    git_repo: str = field(default_factory=lambda: _env("HUNTER_GIT_REPO"))  # e.g. owner/ebay-hunter
+    github_token: str = field(default_factory=lambda: _env("GITHUB_TOKEN"))
+    hunt_every_hours: float = field(default_factory=lambda: float(_env("HUNTER_HUNT_EVERY_HOURS", "2")))
+
     # Limits that keep cost predictable
     results_per_query: int = field(default_factory=lambda: int(_env("HUNTER_RESULTS_PER_QUERY", "50")))
     max_deep_reviews: int = field(default_factory=lambda: int(_env("HUNTER_MAX_DEEP_REVIEWS", "6")))
@@ -56,6 +65,10 @@ class Settings:
     @property
     def has_ebay(self) -> bool:
         return bool(self.ebay_client_id and self.ebay_client_secret)
+
+    @property
+    def has_web(self) -> bool:
+        return bool(self.web_url and self.web_secret)
 
     @property
     def has_email(self) -> bool:

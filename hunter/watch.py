@@ -81,7 +81,9 @@ class Watcher:
                 "id": roundup_id, "at": now_iso(), "delivery": delivery,
                 "items": [{"n": n, "item_id": f["item"]["item_id"], "search": f["search"]["slug"],
                            "title": f["item"]["title"], "price": f["item"]["price"],
-                           "verdict": f["verdict"]["verdict"], "score": f["verdict"].get("score")}
+                           "verdict": f["verdict"]["verdict"], "score": f["verdict"].get("score"),
+                           # full detail for the find page
+                           "listing": f["item"], "review": f["verdict"]}
                           for n, f in enumerate(ordered, 1)],
             })
             report["roundup"] = delivery

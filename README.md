@@ -130,6 +130,42 @@ git add data && git commit -m "new search" && git push
 The watcher picks it up on its next run. On a search's first run only the newest few listings get a close
 review, so you aren't flooded with the backlog.
 
+## The web page (talk a find through)
+
+Each find in a roundup links to a private page with the full breakdown (all photos, fit, price, concerns, a
+seller question to copy) and a chat with the agent: will it fit, how it compares with the other finds, what it's
+worth, and how to buy it well (an offer and walk-away number, or a max bid and when to place it). Reactions you
+give there feed your profile like email replies do. It never buys or bids for you.
+
+The page runs on a small always-on host, which also takes over the 2-hourly hunt from GitHub Actions. Data stays
+in this repo: the server pulls before it reads and pushes finds, chats and learned taste back.
+
+### Host it on Railway (about $5 a month)
+
+1. Sign up at https://railway.com and pick the Hobby plan.
+2. **New Project > Deploy from GitHub repo >** this repo. It finds `requirements.txt` and the `Procfile`.
+3. In the service's **Settings**: under Networking choose **Generate Domain** (copy the URL); under Source set
+   **Watch Paths** to `hunter/**` and `requirements.txt`, so the server's own data commits don't trigger redeploys.
+4. Create a GitHub token at https://github.com/settings/personal-access-tokens: fine-grained, only this repo,
+   **Contents: Read and write**.
+5. In the service's **Variables**, add the same six secrets as GitHub Actions, plus:
+
+| Variable | Value |
+|---|---|
+| `HUNTER_WEB_URL` | the Railway URL from step 3, e.g. `https://ebay-hunter-production.up.railway.app` |
+| `HUNTER_WEB_SECRET` | any long random string (it signs the private links) |
+| `HUNTER_GIT_REPO` | `owner/ebay-hunter` |
+| `GITHUB_TOKEN` | the token from step 4 |
+
+6. In GitHub, **Settings > Secrets and variables > Actions > Variables**, add `HUNTER_RUNNER` = `server` so
+   the Actions schedule stands down and you don't get two roundups.
+
+Check `https://<your-url>/healthz` says `ok`. The first hunt starts about 30 seconds after each deploy, then
+every `HUNTER_HUNT_EVERY_HOURS` (default 2).
+
+To try the page locally: `HUNTER_WEB_URL=http://127.0.0.1:8000 HUNTER_WEB_SECRET=dev python -m hunter serve`,
+then open a link from a dry-run roundup in `data/outbox/`.
+
 ## Why these choices
 
 - **Official eBay API over scraping:** stable, allowed, fast, and won't get blocked when it runs every two

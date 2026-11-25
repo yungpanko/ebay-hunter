@@ -119,6 +119,15 @@ def cmd_cron(args, s, store):
     print(json.dumps(report, indent=1))
 
 
+def cmd_serve(args, s, store):
+    """Run the web page (and the hunt timer) locally, e.g. to try it before hosting."""
+    import os
+    os.environ.setdefault("HUNTER_SCHEDULER", "0")
+    os.environ["HUNTER_NO_AUTOBUILD"] = "1"
+    from .server import build
+    build().run(host="127.0.0.1", port=args.port)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="hunter", description="Your secondhand shopping companion for eBay.")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -157,6 +166,10 @@ def main(argv=None):
     a = sub.add_parser("cron", help="scheduled run: inbox, learn, hunt")
     a.add_argument("--dry-run", action="store_true")
     a.set_defaults(fn=cmd_cron)
+
+    a = sub.add_parser("serve", help="run the web page locally (set HUNTER_WEB_URL and HUNTER_WEB_SECRET)")
+    a.add_argument("--port", type=int, default=8000)
+    a.set_defaults(fn=cmd_serve)
 
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING, format="%(message)s")

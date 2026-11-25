@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 from typing import Any
 
+from . import links
 from .config import Settings
 from .ebay import resize_image
 
@@ -39,7 +40,7 @@ def roundup_subject(finds: list[dict[str, Any]], roundup_id: str) -> str:
     return f"{len(finds)} find{'s' if len(finds) != 1 else ''} ({', '.join(bits)}): {top[:45]}… [hunter:{roundup_id}]"
 
 
-def _card_html(n: int, f: dict[str, Any]) -> str:
+def _card_html(n: int, f: dict[str, Any], talk_url: str | None = None) -> str:
     e = html.escape
     item, v, search = f["item"], f["verdict"], f["search"]
     label, color = TIERS.get(v["verdict"], ("Find", "#6e7781"))
@@ -56,6 +57,10 @@ def _card_html(n: int, f: dict[str, Any]) -> str:
     ask = ""
     if v.get("seller_question"):
         ask = f'<div style="color:#555;font-size:13px;margin-top:4px">Ask the seller: “{e(v["seller_question"])}”</div>'
+    talk = ""
+    if talk_url:
+        talk = (f'<div style="margin-top:6px;font-size:14px"><a href="{e(talk_url)}">Full breakdown and talk it '
+                f'through &rarr;</a></div>')
     return f"""<table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 18px">
 <tr>{img}<td style="vertical-align:top">
 <div style="font-size:12px;font-weight:600;color:{color};text-transform:uppercase;letter-spacing:.03em">
@@ -66,12 +71,13 @@ def _card_html(n: int, f: dict[str, Any]) -> str:
 <ul style="margin:6px 0 0;padding-left:18px;font-size:14px;color:#333">
 {''.join(f'<li>{e(p)}</li>' for p in points if p)}</ul>
 {ask}
+{talk}
 <div style="color:#888;font-size:12px;margin-top:4px">{e(search.get('name', ''))}</div>
 </td></tr></table>"""
 
 
-def render_roundup_html(finds: list[dict[str, Any]]) -> str:
-    cards = "".join(_card_html(n, f) for n, f in enumerate(finds, 1))
+def render_roundup_html(finds: list[dict[str, Any]], link_for=None) -> str:
+    cards = "".join(_card_html(n, f, link_for(n) if link_for else None) for n, f in enumerate(finds, 1))
     return f"""<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:620px;color:#222">
 <p style="font-size:15px">Here's what turned up since the last check, best first.</p>
 {cards}
@@ -80,7 +86,7 @@ Reply with thoughts by number, like “1: love it, ordered” or “3: rise look
 </div>"""
 
 
-def render_roundup_text(finds: list[dict[str, Any]]) -> str:
+def render_roundup_text(finds: list[dict[str, Any]], link_for=None) -> str:
     lines = ["Here's what turned up since the last check, best first.", ""]
     for n, f in enumerate(finds, 1):
         item, v = f["item"], f["verdict"]
@@ -91,6 +97,8 @@ def render_roundup_text(finds: list[dict[str, Any]]) -> str:
             lines.append(f"   - {p}")
         if v.get("seller_question"):
             lines.append(f"   Ask the seller: {v['seller_question']}")
+        if link_for:
+            lines.append(f"   Talk it through: {link_for(n)}")
         lines.append("")
     lines.append('Reply with thoughts by number, like "1: love it" or "3: rise looks short". I learn from every reply.')
     return "\n".join(lines)
@@ -110,13 +118,14 @@ class Mailer:
         msg["From"] = f"eBay Hunter <{self.s.smtp_user or 'hunter@localhost'}>"
         msg["To"] = self.s.email_to or "you@localhost"
         msg["Message-ID"] = make_msgid(domain="ebay-hunter")
-        msg.set_content(render_roundup_text(finds))
-        msg.add_alternative(render_roundup_html(finds), subtype="html")
+        link_for = (lambda n: links.find_url(self.s, roundup_id, n)) if self.s.has_web else None
+        msg.set_content(render_roundup_text(finds, link_for))
+        msg.add_alternative(render_roundup_html(finds, link_for), subtype="html")
         if self.dry_run:
             self.s.outbox_dir.mkdir(parents=True, exist_ok=True)
             path = self.s.outbox_dir / f"{roundup_id}.eml"
             path.write_bytes(bytes(msg))
-            (self.s.outbox_dir / f"{roundup_id}.html").write_text(render_roundup_html(finds))
+            (self.s.outbox_dir / f"{roundup_id}.html").write_text(render_roundup_html(finds, link_for))
             delivery = f"dry-run: wrote {self.s.outbox_dir / (roundup_id + '.html')}"
         else:
             with smtplib.SMTP_SSL(self.s.smtp_host, self.s.smtp_port, context=ssl.create_default_context()) as smtp:
