@@ -6,32 +6,31 @@ with the reasons. Reply to an email and it learns from what you say.
 
 It never buys anything. It only reads public eBay listings through eBay's official API.
 
-## Quick start: first test on your own computer
+## Quick start: build and try it on your own computer
 
-You need Python 3.10+, an Anthropic API key, and your eBay production keys (see Setup below for where to get them).
+You need Python 3.10+, an Anthropic API key (starts with `sk-ant-api`), and your eBay production keys.
 
 ```
 git clone https://github.com/yungpanko/ebay-hunter && cd ebay-hunter
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-export ANTHROPIC_API_KEY=sk-ant-...
-export EBAY_CLIENT_ID=...        # eBay App ID
-export EBAY_CLIENT_SECRET=...    # eBay Cert ID
-
-# 1. Build a search by conversation (type "quit" to stop without saving)
-python -m hunter new vintage jeans
-
-# 2. Run it once without sending email: finds are written to data/outbox/ (open the .html files)
-python -m hunter run --dry-run
-
-# 3. Happy with it? Save the search so the schedule picks it up
-git add data && git commit -m "first search" && git push
+cp .env.example .env        # then open .env and paste your keys (git ignores this file)
 ```
 
-Run `python -m hunter run --dry-run` again and it only looks at listings that are new since the last run. To
-start fresh, delete `data/state/seen.json`. Email isn't needed for this test; once the GitHub secrets below are
-set, the scheduled runs send real emails.
+Then, any time:
+
+```
+source .venv/bin/activate
+python -m hunter new vintage jeans   # build a search by conversation
+python -m hunter dev                 # hunt once (no email sent), then open the roundup page in your browser
+```
+
+`hunter dev` writes the roundup to `data/outbox/` and serves the roundup and per-find chat pages at
+http://127.0.0.1:8000 until you press Ctrl+C. Useful flags: `--no-hunt` just reopens the pages, `--reset`
+forgets which listings were seen so you can re-hunt what's live now.
+
+When it feels right, save searches for the schedule with `git add data && git commit -m "searches" && git push`,
+and see "Host it on Railway" below for the always-on version.
 
 ## How it works
 

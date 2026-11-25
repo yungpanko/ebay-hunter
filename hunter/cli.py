@@ -8,6 +8,7 @@ import logging
 import sys
 
 from .config import Settings
+from .dotenv import load_dotenv
 from .store import Store
 
 
@@ -119,13 +120,49 @@ def cmd_cron(args, s, store):
     print(json.dumps(report, indent=1))
 
 
-def cmd_serve(args, s, store):
-    """Run the web page (and the hunt timer) locally, e.g. to try it before hosting."""
+def _local_web_env(port: int) -> None:
     import os
-    os.environ.setdefault("HUNTER_SCHEDULER", "0")
+    os.environ.setdefault("HUNTER_WEB_URL", f"http://127.0.0.1:{port}")
+    os.environ.setdefault("HUNTER_WEB_SECRET", "dev-local")
+    os.environ.setdefault("HUNTER_SCHEDULER", "0")  # locally, hunts happen when you ask
     os.environ["HUNTER_NO_AUTOBUILD"] = "1"
+
+
+def _serve(port: int):
     from .server import build
-    build().run(host="127.0.0.1", port=args.port)
+    build().run(host="127.0.0.1", port=port)
+
+
+def cmd_serve(args, s, store):
+    """Run the web page locally, e.g. to try it before hosting."""
+    _local_web_env(args.port)
+    _serve(args.port)
+
+
+def cmd_dev(args, s, store):
+    """One local loop: hunt once without sending email, then open the roundup and chat pages on localhost."""
+    import webbrowser
+    from . import links
+    from .watch import Watcher
+
+    _local_web_env(args.port)
+    s = Settings()  # pick up the local web settings
+    store = Store(s)
+    if args.reset:
+        (s.state_dir / "seen.json").unlink(missing_ok=True)
+        _say("Forgot which listings were seen; this hunt treats everything as new.")
+    if not args.no_hunt:
+        if not s.has_ebay:
+            sys.exit("eBay keys aren't set. Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env.")
+        Watcher(s, store, dry_run=True, say=_say).run()
+    roundups = store.read_jsonl("roundups.jsonl")
+    if roundups:
+        url = links.roundup_url(s, roundups[-1]["id"])
+        _say(f"\nLatest roundup: {url}\n(Ctrl+C to stop the page server.)")
+        webbrowser.open(url)
+    else:
+        _say("\nNo roundups yet. Try again later, or add --reset to look at current listings again.")
+    _serve(args.port)
 
 
 def main(argv=None):
@@ -167,11 +204,18 @@ def main(argv=None):
     a.add_argument("--dry-run", action="store_true")
     a.set_defaults(fn=cmd_cron)
 
-    a = sub.add_parser("serve", help="run the web page locally (set HUNTER_WEB_URL and HUNTER_WEB_SECRET)")
+    a = sub.add_parser("serve", help="run the web page locally")
     a.add_argument("--port", type=int, default=8000)
     a.set_defaults(fn=cmd_serve)
 
+    a = sub.add_parser("dev", help="local loop: dry-run hunt, then open the roundup and chat pages")
+    a.add_argument("--port", type=int, default=8000)
+    a.add_argument("--no-hunt", action="store_true", help="just serve the pages")
+    a.add_argument("--reset", action="store_true", help="forget seen listings first, to re-hunt current ones")
+    a.set_defaults(fn=cmd_dev)
+
     args = p.parse_args(argv)
+    load_dotenv()  # keys from a local .env file, if there is one
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING, format="%(message)s")
     s = Settings()
     if args.cmd in {"run", "cron"} and not s.has_ebay:
