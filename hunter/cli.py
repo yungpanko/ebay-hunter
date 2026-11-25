@@ -11,6 +11,10 @@ from .config import Settings
 from .store import Store
 
 
+def _say(msg: str) -> None:
+    print(msg, file=sys.stderr, flush=True)
+
+
 def _meta(store: Store) -> dict:
     p = store.s.state_dir / "meta.json"
     return json.loads(p.read_text()) if p.exists() else {}
@@ -69,7 +73,7 @@ def cmd_toggle(active: bool):
 
 def cmd_run(args, s, store):
     from .watch import Watcher
-    report = Watcher(s, store, dry_run=args.dry_run).run(only=args.search)
+    report = Watcher(s, store, dry_run=args.dry_run, say=_say).run(only=args.search)
     print(json.dumps(report, indent=1))
 
 
@@ -111,7 +115,7 @@ def cmd_cron(args, s, store):
         meta["learned_at_count"] = count
         _save_meta(store, meta)
         print("profile updated from feedback")
-    report = Watcher(s, store, dry_run=args.dry_run).run()
+    report = Watcher(s, store, dry_run=args.dry_run, say=_say).run()
     print(json.dumps(report, indent=1))
 
 
