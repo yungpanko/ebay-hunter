@@ -8,7 +8,7 @@ from typing import Any
 from . import judge, llm
 from .config import Settings
 from .ebay import EbayClient, summarize_item
-from .mailer import Mailer, guess_reaction
+from .mailer import Mailer, guess_reaction, split_numbered
 from .store import Store, now_iso
 
 log = logging.getLogger("hunter")
@@ -54,6 +54,7 @@ class Watcher:
         profile = self.store.read_profile()
         feedback = self.store.feedback()
         report: dict[str, Any] = {"searches": {}, "sent": 0}
+        self.finds: list[dict[str, Any]] = []
         for search in self.store.list_searches(active_only=True):
             slug = search["slug"]
             if only and slug != only:
@@ -73,13 +74,26 @@ class Watcher:
                 self.say(f"  Done: {stats.get('new', 0)} new, {stats.get('reviewed', 0)} reviewed closely, "
                          f"{stats.get('sent', 0)} worth showing you")
             report["sent"] += stats.get("sent", 0)
-            self.store.save_seen(seen)  # save as we go so a crash doesn't re-email
+            self.store.save_seen(seen)  # save as we go so a crash doesn't re-review
+        if self.finds:
+            roundup_id, delivery, ordered = self.mailer.send_roundup(self.finds)
+            self.store.append_jsonl("roundups.jsonl", {
+                "id": roundup_id, "at": now_iso(), "delivery": delivery,
+                "items": [{"n": n, "item_id": f["item"]["item_id"], "search": f["search"]["slug"],
+                           "title": f["item"]["title"], "price": f["item"]["price"],
+                           "verdict": f["verdict"]["verdict"], "score": f["verdict"].get("score")}
+                          for n, f in enumerate(ordered, 1)],
+            })
+            report["roundup"] = delivery
+            self.say(f"Roundup with {len(ordered)} finds: {delivery}")
+        else:
+            self.say("Nothing worth emailing this time.")
         return report
 
     def _run_one(self, search, seen_for_search, profile, feedback, first_run) -> dict[str, Any]:
         new = find_new(self.ebay, search, seen_for_search, self.s.results_per_query, say=self.say)
         stamp = now_iso()
-        stats = {"new": len(new), "reviewed": 0, "sent": 0}
+        stats = {"new": len(new), "reviewed": 0, "sent": 0}  # sent = finds added to this run's roundup
         self.say(f"  {len(new)} listings you haven't seen yet")
         if not new:
             return stats
@@ -122,11 +136,11 @@ class Watcher:
             stats["reviewed"] += 1
             record = {"at": now_iso(), "search": search["slug"], "item_id": item["item_id"], "title": item["title"],
                       "price": item["price"], "url": item["url"], "verdict": verdict["verdict"],
-                      "headline": verdict["headline"]}
+                      "score": verdict.get("score"), "headline": verdict["headline"]}
             if verdict["verdict"] != "pass":
-                record["delivery"] = self.mailer.send(item, verdict, search)
+                self.finds.append({"item": item, "verdict": verdict, "search": search})
                 stats["sent"] += 1
-                self.say(f"    {verdict['verdict'].replace('_', ' ')}: {verdict['headline']} [{record['delivery']}]")
+                self.say(f"    {verdict['verdict'].replace('_', ' ')} ({verdict.get('score')}/10): {verdict['headline']}")
             else:
                 self.say(f"    pass: {verdict['headline']}")
             self.store.append_jsonl("reviews.jsonl", record)
@@ -134,15 +148,29 @@ class Watcher:
 
 
 def ingest_replies(settings: Settings, store: Store, mailer: Mailer) -> int:
-    """Pull email replies into the feedback log, matched to the listing they answer."""
+    """Pull email replies into the feedback log, matched to the finds they answer (by number in a roundup)."""
     reviews = {r["item_id"]: r for r in store.read_jsonl("reviews.jsonl")}
+    roundups = {r["id"]: r for r in store.read_jsonl("roundups.jsonl")}
     n = 0
     for reply in mailer.fetch_replies():
-        r = reviews.get(reply["item_id"], {})
-        store.add_feedback({"item_id": reply["item_id"], "search": r.get("search"), "title": r.get("title"),
-                            "price": r.get("price"), "verdict": r.get("verdict"),
-                            "reaction": guess_reaction(reply["note"]), "note": reply["note"], "via": "email"})
-        n += 1
+        tag, note = reply["tag"], reply["note"]
+        if tag in roundups:
+            by_num = {i["n"]: i for i in roundups[tag]["items"]}
+            for num, text in split_numbered(note).items():
+                target = by_num.get(num)
+                if target:
+                    store.add_feedback({**{k: target[k] for k in ("item_id", "search", "title", "price", "verdict")},
+                                        "reaction": guess_reaction(text), "note": text, "via": "email"})
+                else:  # a general comment on the whole roundup
+                    store.add_feedback({"item_id": None, "search": None, "title": f"roundup {tag}",
+                                        "reaction": "note", "note": text, "via": "email"})
+                n += 1
+        else:  # older single-listing emails were tagged with the item id
+            r = reviews.get(tag, {})
+            store.add_feedback({"item_id": tag, "search": r.get("search"), "title": r.get("title"),
+                                "price": r.get("price"), "verdict": r.get("verdict"),
+                                "reaction": guess_reaction(note), "note": note, "via": "email"})
+            n += 1
     return n
 
 

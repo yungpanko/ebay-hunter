@@ -74,8 +74,10 @@ def triage(c, model: str, system, items: list[dict[str, Any]], thumb_size: int =
 # ---- stage 2: deep review ---------------------------------------------------
 
 VERDICT_SCHEMA = llm.obj({
-    "verdict": {"type": "string", "enum": ["strong_buy", "worth_a_look", "pass"]},
-    "headline": {**llm.STR, "description": "One line, friend-to-friend, on why this is (or isn't) worth their time."},
+    "verdict": {"type": "string", "enum": ["strong_buy", "worth_a_look", "long_shot", "pass"]},
+    "score": {"type": "integer", "description": "1-10: how worth their time this is, all things considered."},
+    "headline": {**llm.STR, "description": "One short line (under 15 words), friend-to-friend, on why this is (or "
+                 "isn't) worth their time."},
     "why": {**llm.arr(llm.STR), "description": "2-5 short reasons tied to their criteria, taste and fit."},
     "photo_findings": {**llm.arr(llm.STR), "description": "Details you saw in photos that the title or specifics "
                        "don't mention (tags, labels, construction, wear, flaws)."},
@@ -94,7 +96,9 @@ the search's must-haves, knowledge notes, measurement ranges and price guidance,
 Measurements beat tag sizes. If a key measurement or detail is missing, say so and draft a seller question.
 
 Verdicts: "strong_buy" means act now, it fits and the price is right. "worth_a_look" means promising with a \
-question or tradeoff, or an off-brief gem they'd likely love. "pass" means not for them. Be honest: a pass is a \
+question or tradeoff. "long_shot" means it could be great but key facts are uncertain (missing measurements, \
+unclear era), or it's an off-brief gem they might love. "pass" means not for them. The score (1-10) ranks finds \
+within a roundup email: 9-10 drop everything, 7-8 strong, 5-6 maybe, below 5 pass. Be honest: a pass is a \
 useful answer, and crying wolf costs their trust."""
 
 

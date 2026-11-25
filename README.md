@@ -46,9 +46,9 @@ set, the scheduled runs send real emails.
    off-brief that looks like your taste) get a close look: every photo, the item specifics and the description,
    checked against your must-haves, measurement ranges, price guidance and past reactions. It looks for what
    sellers miss, like a Made in USA tag that only shows in photo 4.
-4. **Deliver.** A "Strong buy" or "Worth a look" email with the eBay link, why it's worth it, what it spotted
+4. **Deliver.** One roundup email per run, best first. Each find gets a tier (Strong buy, Worth a look, Long shot), a 1-10 score, a one-line why, the eBay link, what it spotted
    in the photos, fit, price take, concerns, and a ready-to-send seller question when something is missing.
-5. **Learn.** Reply to any email in your own words ("love it but the rise looks short", "bought it", "not my
+5. **Learn.** Reply in your own words, by number ("1: love it", "3: rise looks short", "2: bought it", "not my
    era"). The next run reads replies, logs them, and rewrites the "Learned from feedback" part of your profile.
 
 ## Files

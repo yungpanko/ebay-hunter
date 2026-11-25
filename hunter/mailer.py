@@ -1,13 +1,15 @@
-"""Email delivery over SMTP, and reading the user's replies over IMAP as feedback."""
+"""Email delivery over SMTP (one roundup per run), and reading the user's replies over IMAP as feedback."""
 
 from __future__ import annotations
 
 import email
+import email.header
 import html
 import imaplib
 import re
 import smtplib
 import ssl
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.utils import make_msgid
 from typing import Any
@@ -16,70 +18,81 @@ from .config import Settings
 from .ebay import resize_image
 
 TAG_RE = re.compile(r"\[hunter:([^\]\s]+)\]")
-LABELS = {"strong_buy": "Strong buy", "worth_a_look": "Worth a look"}
+TIERS = {  # order = how finds are ranked in a roundup
+    "strong_buy": ("Strong buy", "#1a7f37"),
+    "worth_a_look": ("Worth a look", "#9a6700"),
+    "long_shot": ("Long shot", "#6e7781"),
+}
 
 
-def subject_for(item: dict[str, Any], verdict: dict[str, Any]) -> str:
-    label = "Off-brief gem" if verdict.get("off_brief_gem") else LABELS.get(verdict["verdict"], "Found")
-    title = (item.get("title") or "")[:70]
-    return f"{label}: {title} · {item.get('price', '')} [hunter:{item['item_id']}]"
+def rank(find: dict[str, Any]) -> tuple:
+    v = find["verdict"]
+    return (list(TIERS).index(v["verdict"]) if v["verdict"] in TIERS else 9, -float(v.get("score") or 0))
 
 
-def _li(items: list[str]) -> str:
-    return "".join(f"<li>{html.escape(x)}</li>" for x in items if x)
+def roundup_subject(finds: list[dict[str, Any]], roundup_id: str) -> str:
+    counts = {}
+    for f in finds:
+        counts[f["verdict"]["verdict"]] = counts.get(f["verdict"]["verdict"], 0) + 1
+    bits = [f"{counts[k]} {TIERS[k][0].lower()}" for k in TIERS if counts.get(k)]
+    top = finds[0]["item"].get("title") or ""
+    return f"{len(finds)} find{'s' if len(finds) != 1 else ''} ({', '.join(bits)}): {top[:45]}… [hunter:{roundup_id}]"
 
 
-def render_html(item: dict[str, Any], verdict: dict[str, Any], search: dict[str, Any]) -> str:
+def _card_html(n: int, f: dict[str, Any]) -> str:
     e = html.escape
+    item, v, search = f["item"], f["verdict"], f["search"]
+    label, color = TIERS.get(v["verdict"], ("Find", "#6e7781"))
+    if v.get("off_brief_gem"):
+        label += " · off-brief gem"
     img = ""
     if item.get("images"):
-        img = (f'<a href="{e(item["url"] or "")}"><img src="{e(resize_image(item["images"][0], 500))}" '
-               f'alt="" style="max-width:100%;border-radius:8px;margin:8px 0"></a>')
-    ship = f" + {item['shipping']} shipping" if item.get("shipping") not in (None, "0.0", "0.00", 0) else ""
-    sections = []
+        img = (f'<td style="width:110px;vertical-align:top;padding-right:12px"><a href="{e(item.get("url") or "")}">'
+               f'<img src="{e(resize_image(item["images"][0], 300))}" width="110" alt="" '
+               f'style="border-radius:6px;display:block"></a></td>')
+    ship = item.get("shipping")
+    ship_txt = f" + {ship} ship" if ship not in (None, "0.0", "0.00", 0) else ""
+    points = (v.get("why") or [])[:2] + (v.get("photo_findings") or [])[:1]
+    ask = ""
+    if v.get("seller_question"):
+        ask = f'<div style="color:#555;font-size:13px;margin-top:4px">Ask the seller: “{e(v["seller_question"])}”</div>'
+    return f"""<table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 18px">
+<tr>{img}<td style="vertical-align:top">
+<div style="font-size:12px;font-weight:600;color:{color};text-transform:uppercase;letter-spacing:.03em">
+#{n} · {e(label)} · {e(str(v.get('score', '')))}/10</div>
+<div style="font-size:16px;font-weight:600;margin:2px 0">{e(v.get('headline', ''))}</div>
+<div style="font-size:14px"><a href="{e(item.get('url') or '')}">{e(item.get('title') or '')}</a>
+· <b>{e(item.get('price', ''))}</b>{e(ship_txt)}</div>
+<ul style="margin:6px 0 0;padding-left:18px;font-size:14px;color:#333">
+{''.join(f'<li>{e(p)}</li>' for p in points if p)}</ul>
+{ask}
+<div style="color:#888;font-size:12px;margin-top:4px">{e(search.get('name', ''))}</div>
+</td></tr></table>"""
 
-    def section(title: str, body: str) -> None:
-        if body:
-            sections.append(f'<h3 style="margin:16px 0 4px;font-size:15px">{e(title)}</h3>{body}')
 
-    section("Why", f"<ul>{_li(verdict.get('why', []))}</ul>" if verdict.get("why") else "")
-    section("Spotted in the photos", f"<ul>{_li(verdict.get('photo_findings', []))}</ul>"
-            if verdict.get("photo_findings") else "")
-    section("Fit", f"<p>{e(verdict.get('fit', ''))}</p>" if verdict.get("fit") else "")
-    section("Price", f"<p>{e(verdict.get('price_take', ''))}</p>" if verdict.get("price_take") else "")
-    section("Watch out for", f"<ul>{_li(verdict.get('concerns', []))}</ul>" if verdict.get("concerns") else "")
-    if verdict.get("missing_info"):
-        q = verdict.get("seller_question", "")
-        section("Missing from the listing",
-                f"<ul>{_li(verdict['missing_info'])}</ul>"
-                + (f'<p>Ask the seller:</p><blockquote style="border-left:3px solid #ccc;margin:0;padding-left:10px">'
-                   f"{e(q)}</blockquote>" if q else ""))
-
-    return f"""<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:600px;color:#222">
-<p style="color:#666;font-size:13px;margin:0">From your search: {e(search.get('name', ''))}</p>
-<h2 style="margin:6px 0">{e(verdict.get('headline', ''))}</h2>
-<p style="margin:4px 0"><a href="{e(item.get('url') or '')}">{e(item.get('title') or '')}</a><br>
-<b>{e(item.get('price', ''))}</b>{e(ship)} · {e(item.get('condition') or '')}
-{' · ' + e(', '.join(item.get('buying_options') or [])) if item.get('buying_options') else ''}</p>
-{img}
-{''.join(sections)}
-<p style="margin-top:20px"><a href="{e(item.get('url') or '')}" style="background:#222;color:#fff;padding:10px 16px;
-border-radius:6px;text-decoration:none">Open on eBay</a></p>
-<p style="color:#666;font-size:13px;margin-top:20px">Reply with what you think ("love it", "too short in the
-rise", "bought it", "not my era") and I'll learn from it.</p>
+def render_roundup_html(finds: list[dict[str, Any]]) -> str:
+    cards = "".join(_card_html(n, f) for n, f in enumerate(finds, 1))
+    return f"""<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:620px;color:#222">
+<p style="font-size:15px">Here's what turned up since the last check, best first.</p>
+{cards}
+<p style="color:#666;font-size:13px;margin-top:20px;border-top:1px solid #eee;padding-top:12px">
+Reply with thoughts by number, like “1: love it, ordered” or “3: rise looks short”. I learn from every reply.</p>
 </div>"""
 
 
-def render_text(item: dict[str, Any], verdict: dict[str, Any], search: dict[str, Any]) -> str:
-    lines = [verdict.get("headline", ""), "", f"{item.get('title')}  {item.get('price')}", item.get("url") or "", ""]
-    for title, key in [("Why", "why"), ("Spotted in the photos", "photo_findings"), ("Watch out for", "concerns"),
-                       ("Missing", "missing_info")]:
-        if verdict.get(key):
-            lines += [title + ":"] + [f"- {x}" for x in verdict[key]] + [""]
-    for title, key in [("Fit", "fit"), ("Price", "price_take"), ("Ask the seller", "seller_question")]:
-        if verdict.get(key):
-            lines += [f"{title}: {verdict[key]}", ""]
-    lines.append(f"From your search: {search.get('name', '')}. Reply with what you think and I'll learn from it.")
+def render_roundup_text(finds: list[dict[str, Any]]) -> str:
+    lines = ["Here's what turned up since the last check, best first.", ""]
+    for n, f in enumerate(finds, 1):
+        item, v = f["item"], f["verdict"]
+        label = TIERS.get(v["verdict"], ("Find",))[0]
+        lines += [f"#{n} {label} ({v.get('score', '')}/10): {v.get('headline', '')}",
+                  f"   {item.get('title')}  {item.get('price')}", f"   {item.get('url')}"]
+        for p in (v.get("why") or [])[:2]:
+            lines.append(f"   - {p}")
+        if v.get("seller_question"):
+            lines.append(f"   Ask the seller: {v['seller_question']}")
+        lines.append("")
+    lines.append('Reply with thoughts by number, like "1: love it" or "3: rise looks short". I learn from every reply.')
     return "\n".join(lines)
 
 
@@ -88,25 +101,29 @@ class Mailer:
         self.s = settings
         self.dry_run = dry_run or not settings.has_email
 
-    def send(self, item: dict[str, Any], verdict: dict[str, Any], search: dict[str, Any]) -> str:
+    def send_roundup(self, finds: list[dict[str, Any]]) -> tuple[str, str, list[dict[str, Any]]]:
+        """Send one email with every find. Returns (roundup id, delivery note, finds in the order shown)."""
+        finds = sorted(finds, key=rank)
+        roundup_id = "r" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         msg = EmailMessage()
-        msg["Subject"] = subject_for(item, verdict)
+        msg["Subject"] = roundup_subject(finds, roundup_id)
         msg["From"] = f"eBay Hunter <{self.s.smtp_user or 'hunter@localhost'}>"
         msg["To"] = self.s.email_to or "you@localhost"
         msg["Message-ID"] = make_msgid(domain="ebay-hunter")
-        msg.set_content(render_text(item, verdict, search))
-        msg.add_alternative(render_html(item, verdict, search), subtype="html")
+        msg.set_content(render_roundup_text(finds))
+        msg.add_alternative(render_roundup_html(finds), subtype="html")
         if self.dry_run:
             self.s.outbox_dir.mkdir(parents=True, exist_ok=True)
-            safe = re.sub(r"[^A-Za-z0-9]+", "_", item["item_id"])
-            path = self.s.outbox_dir / f"{safe}.eml"
+            path = self.s.outbox_dir / f"{roundup_id}.eml"
             path.write_bytes(bytes(msg))
-            (self.s.outbox_dir / f"{safe}.html").write_text(render_html(item, verdict, search))
-            return f"dry-run: wrote {path}"
-        with smtplib.SMTP_SSL(self.s.smtp_host, self.s.smtp_port, context=ssl.create_default_context()) as smtp:
-            smtp.login(self.s.smtp_user, self.s.smtp_password)
-            smtp.send_message(msg)
-        return f"sent to {self.s.email_to}"
+            (self.s.outbox_dir / f"{roundup_id}.html").write_text(render_roundup_html(finds))
+            delivery = f"dry-run: wrote {self.s.outbox_dir / (roundup_id + '.html')}"
+        else:
+            with smtplib.SMTP_SSL(self.s.smtp_host, self.s.smtp_port, context=ssl.create_default_context()) as smtp:
+                smtp.login(self.s.smtp_user, self.s.smtp_password)
+                smtp.send_message(msg)
+            delivery = f"sent to {self.s.email_to}"
+        return roundup_id, delivery, finds
 
     # ---- replies -> feedback ------------------------------------------------
     def fetch_replies(self) -> list[dict[str, str]]:
@@ -124,8 +141,7 @@ class Mailer:
                 status, parts = imap.fetch(num, "(RFC822)")
                 if status != "OK":
                     continue
-                msg = email.message_from_bytes(parts[0][1])
-                parsed = parse_reply(msg)
+                parsed = parse_reply(email.message_from_bytes(parts[0][1]))
                 if parsed:
                     out.append(parsed)
                 imap.store(num, "+FLAGS", "\\Seen")
@@ -148,7 +164,21 @@ def parse_reply(msg: email.message.Message) -> dict[str, str] | None:
     note = strip_quoted(body)
     if not note:
         return None
-    return {"item_id": m.group(1), "note": note}
+    return {"tag": m.group(1), "note": note}
+
+
+def split_numbered(note: str) -> dict[int, str]:
+    """'1: love it\\n#3 too short' -> {1: 'love it', 3: 'too short'}. Unnumbered text is returned under 0."""
+    out: dict[int, str] = {}
+    current = 0
+    for line in note.splitlines():
+        m = re.match(r"^\s*#?(\d{1,2})\s*[:.)\-]\s*(.*)$", line)
+        if m:
+            current = int(m.group(1))
+            out[current] = m.group(2).strip()
+        elif line.strip():
+            out[current] = (out.get(current, "") + " " + line.strip()).strip()
+    return out
 
 
 def strip_quoted(body: str) -> str:
@@ -171,4 +201,3 @@ def guess_reaction(note: str) -> str:
     if re.search(r"\b(pass|no|nah|not|too|wrong|don't|dont|hate|meh)\b", n):
         return "passed"
     return "note"
-

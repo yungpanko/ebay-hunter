@@ -8,7 +8,7 @@ import yaml
 from hunter.builder import Builder
 from hunter.config import Settings
 from hunter.ebay import EbayClient, build_aspect_filter, build_filter, resize_image, summarize_item
-from hunter.mailer import Mailer, guess_reaction, parse_reply, strip_quoted, subject_for
+from hunter.mailer import Mailer, guess_reaction, parse_reply, split_numbered, strip_quoted
 from hunter.store import Store
 from hunter.watch import Watcher, ingest_replies
 
@@ -104,7 +104,7 @@ def _claude_for_watch():
             return json_resp({"items": [{"item_id": i, "look_closer": "100002" not in i, "reason": "r"} for i in ids]})
         assert any(b["type"] == "image" and "s-l1200" in b["source"]["url"] for b in content)
         return json_resp({
-            "verdict": "strong_buy", "headline": "USA-made 501s in your size for $40.",
+            "verdict": "strong_buy", "score": 8, "headline": "USA-made 501s in your size for $40.",
             "why": ["Made in USA tag in photo 2"], "photo_findings": ["Care tag reads Made in USA"],
             "fit": "16 flat matches your 15.5-16.5", "price_take": "Steal", "concerns": [],
             "missing_info": ["rise"], "seller_question": "Could you measure the front rise?", "off_brief_gem": False,
@@ -128,10 +128,13 @@ def test_watch_run_triage_review_email_and_dedupe(env):
     assert stats["new"] == 3 and stats["shortlisted"] == 2 and stats["reviewed"] == 2 and stats["sent"] == 2
     assert sorted(ebay.item_calls) == ["v1|100001|0", "v1|100003|0"]
     outbox = sorted(p.name for p in s.outbox_dir.glob("*.eml"))
-    assert outbox == ["v1_100001_0.eml", "v1_100003_0.eml"]
+    assert len(outbox) == 1  # one roundup for the whole run
     msg = email.message_from_bytes((s.outbox_dir / outbox[0]).read_bytes())
-    assert msg["Subject"].startswith("Strong buy: Levis 501 USA 33x30") and "[hunter:v1|100001|0]" in msg["Subject"]
-    html = (s.outbox_dir / "v1_100001_0.html").read_text()
+    assert msg["Subject"].startswith("2 finds (2 strong buy)") and "[hunter:r" in msg["Subject"]
+    html = (s.outbox_dir / outbox[0].replace(".eml", ".html")).read_text()
+    assert "#1 · Strong buy · 8/10" in html and "#2 · Strong buy" in html
+    roundup = store.read_jsonl("roundups.jsonl")[0]
+    assert [i["n"] for i in roundup["items"]] == [1, 2] and roundup["items"][0]["score"] == 8
     assert "Could you measure the front rise?" in html and "https://www.ebay.com/itm/100001" in html
     # The system prompt carries profile + search so it caches across items.
     assert "Made in USA Levi's 501s" in claude.calls[0]["system"][0]["text"]
@@ -205,7 +208,7 @@ def test_reply_parsing():
            b"Content-Type: text/plain; charset=utf-8\r\n\r\n"
            b"Love these but the rise looks short\r\n\r\nOn Tue, Nov 24, 2026 at 3:00 PM eBay Hunter wrote:\r\n> stuff\r\n")
     r = parse_reply(email.message_from_bytes(raw))
-    assert r == {"item_id": "v1|100001|0", "note": "Love these but the rise looks short"}
+    assert r == {"tag": "v1|100001|0", "note": "Love these but the rise looks short"}
     assert strip_quoted("ok\n> quoted") == "ok"
     assert guess_reaction("bought it!") == "bought"
     assert guess_reaction("love it") == "liked"
@@ -219,16 +222,31 @@ def test_ingest_replies(env):
 
     class M:
         def fetch_replies(self):
-            return [{"item_id": "v1|1|0", "note": "bought it"}]
+            return [{"tag": "v1|1|0", "note": "bought it"}]
 
     assert ingest_replies(s, store, M()) == 1
     fb = store.feedback()[0]
     assert fb["reaction"] == "bought" and fb["search"] == "usa-501s"
 
 
-def test_subject():
-    assert subject_for({"title": "T", "price": "1 USD", "item_id": "v1|9|0"},
-                       {"verdict": "worth_a_look", "off_brief_gem": True}) == "Off-brief gem: T · 1 USD [hunter:v1|9|0]"
+def test_split_numbered():
+    assert split_numbered("1: love it\n#3) rise looks short\nmore on 3\n") == {1: "love it", 3: "rise looks short more on 3"}
+    assert split_numbered("great batch") == {0: "great batch"}
+
+
+def test_ingest_roundup_reply(env):
+    s, store = env
+    store.append_jsonl("roundups.jsonl", {"id": "r1", "items": [
+        {"n": 1, "item_id": "a", "search": "usa-501s", "title": "A", "price": "1", "verdict": "strong_buy"},
+        {"n": 2, "item_id": "b", "search": "usa-501s", "title": "B", "price": "2", "verdict": "long_shot"}]})
+
+    class M:
+        def fetch_replies(self):
+            return [{"tag": "r1", "note": "1: bought it\n2: too short in the rise"}]
+
+    assert ingest_replies(s, store, M()) == 2
+    fb = store.feedback()
+    assert [(f["item_id"], f["reaction"]) for f in fb] == [("a", "bought"), ("b", "passed")]
 
 
 def test_profile_sections(env):
