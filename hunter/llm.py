@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 import anthropic
@@ -15,7 +16,9 @@ class ClaudeError(RuntimeError):
 
 
 def client() -> anthropic.Anthropic:
-    return anthropic.Anthropic()
+    # A key pasted from the clipboard often carries stray whitespace or quotes, which reads as an invalid key.
+    key = os.environ.get("ANTHROPIC_API_KEY", "").strip().strip('"').strip("'")
+    return anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
 
 
 def create(c: anthropic.Anthropic, **kwargs: Any):
